@@ -591,9 +591,10 @@ impl Provider for OllamaNativeProvider {
         let client = self.http_client();
         let api_key = self.api_key.clone();
 
+        let count_tokens = options.count_tokens;
         let s = stream::unfold(
             (client, url, request, api_key, should_auth, None, Vec::new()),
-            |(client, url, request, api_key, should_auth, mut response, mut buffer)| async move {
+            move |(client, url, request, api_key, should_auth, mut response, mut buffer)| async move {
                 if response.is_none() {
                     let mut rb = client.post(&url).json(&request);
                     if should_auth {
@@ -642,7 +643,7 @@ impl Provider for OllamaNativeProvider {
                                 }
 
                                 let mut chunk = StreamChunk::delta(delta);
-                                if options.count_tokens {
+                                if count_tokens {
                                     chunk = chunk.with_token_estimate();
                                 }
                                 if api_resp.done {

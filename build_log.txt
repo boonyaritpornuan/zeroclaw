@@ -1,0 +1,383 @@
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 5.35kB done
+#1 DONE 0.0s
+
+#2 resolve image config for docker-image://docker.io/docker/dockerfile:1.7
+#2 DONE 3.0s
+
+#3 docker-image://docker.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
+#3 CACHED
+
+#4 [internal] load metadata for docker.io/library/debian:trixie-slim@sha256:f6e2cfac5cf956ea044b4bd75e6397b4372ad88fe00908045e9a0d21712ae3ba
+#4 DONE 0.0s
+
+#5 [internal] load metadata for docker.io/library/rust:latest
+#5 DONE 1.4s
+
+#6 [internal] load .dockerignore
+#6 transferring context: 887B done
+#6 DONE 0.0s
+
+#7 [builder  1/16] FROM docker.io/library/rust:latest@sha256:51c04d7a2b38418ba23ecbfb373c40d3bd493dec1ddfae00ab5669527320195e
+#7 DONE 0.0s
+
+#8 [dev 1/7] FROM docker.io/library/debian:trixie-slim@sha256:f6e2cfac5cf956ea044b4bd75e6397b4372ad88fe00908045e9a0d21712ae3ba
+#8 DONE 0.0s
+
+#9 [dev 2/7] RUN apt-get update && apt-get install -y     ca-certificates     curl     && rm -rf /var/lib/apt/lists/*
+#9 CACHED
+
+#10 [internal] load build context
+#10 transferring context: 17.28kB 0.1s done
+#10 DONE 0.1s
+
+#11 [builder  8/16] RUN rm -rf src benches crates/robot-kit/src
+#11 CACHED
+
+#12 [builder 11/16] COPY crates/ crates/
+#12 CACHED
+
+#13 [builder  5/16] COPY crates/robot-kit/Cargo.toml crates/robot-kit/Cargo.toml
+#13 CACHED
+
+#14 [builder  6/16] RUN mkdir -p src benches crates/robot-kit/src     && echo "fn main() {}" > src/main.rs     && echo "fn main() {}" > benches/agent_benchmarks.rs     && echo "pub fn placeholder() {}" > crates/robot-kit/src/lib.rs
+#14 CACHED
+
+#15 [builder  4/16] COPY Cargo.toml Cargo.lock ./
+#15 CACHED
+
+#16 [builder 10/16] COPY benches/ benches/
+#16 CACHED
+
+#17 [builder 12/16] COPY firmware/ firmware/
+#17 CACHED
+
+#18 [builder 13/16] COPY web/ web/
+#18 CACHED
+
+#19 [builder  3/16] RUN --mount=type=cache,target=/var/cache/apt,sharing=locked     --mount=type=cache,target=/var/lib/apt,sharing=locked     apt-get update && apt-get install -y         pkg-config     && rm -rf /var/lib/apt/lists/*
+#19 CACHED
+
+#20 [builder  9/16] COPY src/ src/
+#20 CACHED
+
+#21 [builder  7/16] RUN --mount=type=cache,id=zeroclaw-cargo-registry,target=/usr/local/cargo/registry,sharing=locked     --mount=type=cache,id=zeroclaw-cargo-git,target=/usr/local/cargo/git,sharing=locked     --mount=type=cache,id=zeroclaw-target,target=/app/target,sharing=locked     if [ -n "" ]; then       cargo build --release --features "";     else       cargo build --release;     fi
+#21 CACHED
+
+#22 [builder  2/16] WORKDIR /app
+#22 CACHED
+
+#23 [builder 14/16] RUN mkdir -p web/dist &&     if [ ! -f web/dist/index.html ]; then       printf '%s\n'         '<!doctype html>'         '<html lang="en">'         '  <head>'         '    <meta charset="utf-8" />'         '    <meta name="viewport" content="width=device-width,initial-scale=1" />'         '    <title>ZeroClaw Dashboard</title>'         '  </head>'         '  <body>'         '    <h1>ZeroClaw Dashboard Unavailable</h1>'         '    <p>Frontend assets are not bundled in this build. Build the web UI to populate <code>web/dist</code>.</p>'         '  </body>'         '</html>' > web/dist/index.html;     fi
+#23 CACHED
+
+#24 [builder 15/16] RUN --mount=type=cache,id=zeroclaw-cargo-registry,target=/usr/local/cargo/registry,sharing=locked     --mount=type=cache,id=zeroclaw-cargo-git,target=/usr/local/cargo/git,sharing=locked     --mount=type=cache,id=zeroclaw-target,target=/app/target,sharing=locked     if [ -n "" ]; then       cargo build --release --features "";     else       cargo build --release;     fi &&     cp target/release/zeroclaw /app/zeroclaw &&     strip /app/zeroclaw
+#24 1.218    Compiling zeroclaw v0.1.7 (/app)
+#24 4.400 error: couldn't read `src/skills/../../templates/rust/weather_lookup/Cargo.toml`: No such file or directory (os error 2)
+#24 4.400   --> src/skills/templates.rs:23:18
+#24 4.400    |
+#24 4.400 23 |         content: include_str!("../../templates/rust/weather_lookup/Cargo.toml"),
+#24 4.400    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#24 4.400 
+#24 4.400 error: couldn't read `src/skills/../../templates/rust/weather_lookup/src/main.rs`: No such file or directory (os error 2)
+#24 4.400   --> src/skills/templates.rs:27:18
+#24 4.400    |
+#24 4.400 27 |         content: include_str!("../../templates/rust/weather_lookup/src/main.rs"),
+#24 4.400    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#24 4.400 
+#24 4.400 error: couldn't read `src/skills/../../templates/rust/weather_lookup/manifest.json`: No such file or directory (os error 2)
+#24 4.400   --> src/skills/templates.rs:31:18
+#24 4.400    |
+#24 4.400 31 |         content: include_str!("../../templates/rust/weather_lookup/manifest.json"),
+#24 4.400    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#24 4.400 
+#24 4.401 error: couldn't read `src/skills/../../templates/rust/weather_lookup/.cargo/config.toml`: No such file or directory (os error 2)
+#24 4.401   --> src/skills/templates.rs:35:18
+#24 4.401    |
+#24 4.401 35 |         content: include_str!("../../templates/rust/weather_lookup/.cargo/config.toml"),
+#24 4.401    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#24 4.401 
+#24 4.401 error: couldn't read `src/skills/../../templates/rust/calculator/Cargo.toml`: No such file or directory (os error 2)
+#24 4.401   --> src/skills/templates.rs:42:18
+#24 4.401    |
+#24 4.401 42 |         content: include_str!("../../templates/rust/calculator/Cargo.toml"),
+#24 4.401    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#24 4.401 
+#24 4.401 error: couldn't read `src/skills/../../templates/rust/calculator/src/main.rs`: No such file or directory (os error 2)
+#24 4.401   --> src/skills/templates.rs:46:18
+#24 4.401    |
+#24 4.401 46 |         content: include_str!("../../templates/rust/calculator/src/main.rs"),
+#24 4.401    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#24 4.401 
+#24 4.401 error: couldn't read `src/skills/../../templates/rust/calculator/manifest.json`: No such file or directory (os error 2)
+#24 4.401   --> src/skills/templates.rs:50:18
+#24 4.401    |
+#24 4.401 50 |         content: include_str!("../../templates/rust/calculator/manifest.json"),
+#24 4.401    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#24 4.401 
+#24 4.401 error: couldn't read `src/skills/../../templates/rust/calculator/.cargo/config.toml`: No such file or directory (os error 2)
+#24 4.401   --> src/skills/templates.rs:54:18
+#24 4.401    |
+#24 4.401 54 |         content: include_str!("../../templates/rust/calculator/.cargo/config.toml"),
+#24 4.401    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#24 4.401 
+#24 4.401 error: couldn't read `src/skills/../../templates/typescript/hello_world/package.json`: No such file or directory (os error 2)
+#24 4.401   --> src/skills/templates.rs:63:18
+#24 4.401    |
+#24 4.401 63 |         content: include_str!("../../templates/typescript/hello_world/package.json"),
+#24 4.401    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#24 4.401 
+#24 4.401 error: couldn't read `src/skills/../../templates/typescript/hello_world/tsconfig.json`: No such file or directory (os error 2)
+#24 4.401   --> src/skills/templates.rs:67:18
+#24 4.401    |
+#24 4.401 67 |         content: include_str!("../../templates/typescript/hello_world/tsconfig.json"),
+#24 4.401    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#24 4.401 
+#24 4.401 error: couldn't read `src/skills/../../templates/typescript/hello_world/src/index.ts`: No such file or directory (os error 2)
+#24 4.401   --> src/skills/templates.rs:71:18
+#24 4.401    |
+#24 4.401 71 |         content: include_str!("../../templates/typescript/hello_world/src/index.ts"),
+#24 4.401    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#24 4.401 
+#24 4.401 error: couldn't read `src/skills/../../templates/typescript/hello_world/manifest.json`: No such file or directory (os error 2)
+#24 4.401   --> src/skills/templates.rs:75:18
+#24 4.401    |
+#24 4.401 75 |         content: include_str!("../../templates/typescript/hello_world/manifest.json"),
+#24 4.401    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#24 4.401 
+#24 4.401 error: couldn't read `src/skills/../../templates/go/word_count/go.mod`: No such file or directory (os error 2)
+#24 4.401   --> src/skills/templates.rs:84:18
+#24 4.401    |
+#24 4.401 84 |         content: include_str!("../../templates/go/word_count/go.mod"),
+#24 4.401    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#24 4.401 
+#24 4.401 error: couldn't read `src/skills/../../templates/go/word_count/main.go`: No such file or directory (os error 2)
+#24 4.401   --> src/skills/templates.rs:88:18
+#24 4.401    |
+#24 4.401 88 |         content: include_str!("../../templates/go/word_count/main.go"),
+#24 4.401    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#24 4.401 
+#24 4.402 error: couldn't read `src/skills/../../templates/go/word_count/manifest.json`: No such file or directory (os error 2)
+#24 4.402   --> src/skills/templates.rs:92:18
+#24 4.402    |
+#24 4.402 92 |         content: include_str!("../../templates/go/word_count/manifest.json"),
+#24 4.402    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#24 4.402 
+#24 4.402 error: couldn't read `src/skills/../../templates/python/text_transform/main.py`: No such file or directory (os error 2)
+#24 4.402    --> src/skills/templates.rs:101:18
+#24 4.402     |
+#24 4.402 101 |         content: include_str!("../../templates/python/text_transform/main.py"),
+#24 4.402     |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#24 4.402 
+#24 4.402 error: couldn't read `src/skills/../../templates/python/text_transform/manifest.json`: No such file or directory (os error 2)
+#24 4.402    --> src/skills/templates.rs:105:18
+#24 4.402     |
+#24 4.402 105 |         content: include_str!("../../templates/python/text_transform/manifest.json"),
+#24 4.402     |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#24 4.402 
+#24 6.264 warning: unused import: `RiskLevel`
+#24 6.264  --> src/agent/loop_.rs:1:75
+#24 6.264   |
+#24 6.264 1 | use crate::approval::{ApprovalManager, ApprovalRequest, ApprovalResponse, RiskLevel};
+#24 6.264   |                                                                           ^^^^^^^^^
+#24 6.264   |
+#24 6.264   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+#24 6.264 
+#24 6.268 warning: unused doc comment
+#24 6.268    --> src/approval/mod.rs:202:5
+#24 6.268     |
+#24 6.268 202 |     /// Default: supervised mode requires approval.
+#24 6.268     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#24 6.268 203 |     true
+#24 6.268     |     ---- rustdoc does not generate documentation for expressions
+#24 6.268     |
+#24 6.268     = help: use `//` for a plain comment
+#24 6.268     = note: `#[warn(unused_doc_comments)]` (part of `#[warn(unused)]`) on by default
+#24 6.268 
+#24 6.320 warning: unused import: `run_tool_call_loop`
+#24 6.320   --> src/gateway/ws.rs:14:74
+#24 6.320    |
+#24 6.320 14 |     build_shell_policy_instructions, build_tool_instructions_from_specs, run_tool_call_loop,
+#24 6.320    |                                                                          ^^^^^^^^^^^^^^^^^^
+#24 6.320 
+#24 6.335 warning: unexpected `cfg` condition value: `firecrawl`
+#24 6.335     --> src/onboard/wizard.rs:3056:19
+#24 6.335      |
+#24 6.335 3056 |             #[cfg(feature = "firecrawl")]
+#24 6.335      |                   ^^^^^^^^^^^^^^^^^^^^^
+#24 6.335      |
+#24 6.335      = note: expected values for `feature` are: `browser-native`, `channel-lark`, `channel-matrix`, `default`, `fantoccini`, `hardware`, `landlock`, `memory-postgres`, `nusb`, `observability-otel`, `peripheral-rpi`, `probe`, `rag-pdf`, `rppal`, `runtime-wasm`, `sandbox-bubblewrap`, `sandbox-landlock`, `tokio-serial`, `wasm-tools`, and `whatsapp-web`
+#24 6.335      = help: consider adding `firecrawl` as a feature in `Cargo.toml`
+#24 6.335      = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+#24 6.335      = note: `#[warn(unexpected_cfgs)]` on by default
+#24 6.335 
+#24 6.335 warning: unexpected `cfg` condition value: `firecrawl`
+#24 6.335     --> src/onboard/wizard.rs:3075:19
+#24 6.335      |
+#24 6.335 3075 |             #[cfg(feature = "firecrawl")]
+#24 6.335      |                   ^^^^^^^^^^^^^^^^^^^^^
+#24 6.335      |
+#24 6.335      = note: expected values for `feature` are: `browser-native`, `channel-lark`, `channel-matrix`, `default`, `fantoccini`, `hardware`, `landlock`, `memory-postgres`, `nusb`, `observability-otel`, `peripheral-rpi`, `probe`, `rag-pdf`, `rppal`, `runtime-wasm`, `sandbox-bubblewrap`, `sandbox-landlock`, `tokio-serial`, `wasm-tools`, and `whatsapp-web`
+#24 6.335      = help: consider adding `firecrawl` as a feature in `Cargo.toml`
+#24 6.335      = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+#24 6.335 
+#24 6.335 warning: unexpected `cfg` condition value: `firecrawl`
+#24 6.335     --> src/onboard/wizard.rs:3127:19
+#24 6.335      |
+#24 6.335 3127 |             #[cfg(feature = "firecrawl")]
+#24 6.335      |                   ^^^^^^^^^^^^^^^^^^^^^
+#24 6.335      |
+#24 6.335      = note: expected values for `feature` are: `browser-native`, `channel-lark`, `channel-matrix`, `default`, `fantoccini`, `hardware`, `landlock`, `memory-postgres`, `nusb`, `observability-otel`, `peripheral-rpi`, `probe`, `rag-pdf`, `rppal`, `runtime-wasm`, `sandbox-bubblewrap`, `sandbox-landlock`, `tokio-serial`, `wasm-tools`, and `whatsapp-web`
+#24 6.335      = help: consider adding `firecrawl` as a feature in `Cargo.toml`
+#24 6.335      = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+#24 6.335 
+#24 6.335 warning: unexpected `cfg` condition value: `firecrawl`
+#24 6.335     --> src/onboard/wizard.rs:3140:19
+#24 6.335      |
+#24 6.335 3140 |             #[cfg(feature = "firecrawl")]
+#24 6.335      |                   ^^^^^^^^^^^^^^^^^^^^^
+#24 6.335      |
+#24 6.335      = note: expected values for `feature` are: `browser-native`, `channel-lark`, `channel-matrix`, `default`, `fantoccini`, `hardware`, `landlock`, `memory-postgres`, `nusb`, `observability-otel`, `peripheral-rpi`, `probe`, `rag-pdf`, `rppal`, `runtime-wasm`, `sandbox-bubblewrap`, `sandbox-landlock`, `tokio-serial`, `wasm-tools`, and `whatsapp-web`
+#24 6.335      = help: consider adding `firecrawl` as a feature in `Cargo.toml`
+#24 6.335      = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+#24 6.335 
+#24 6.371 warning: unused import: `zip::ZipArchive`
+#24 6.371  --> src/skills/audit.rs:6:5
+#24 6.371   |
+#24 6.371 6 | use zip::ZipArchive;
+#24 6.371   |     ^^^^^^^^^^^^^^^
+#24 6.371 
+#24 6.387 warning: unused import: `std::sync::Arc`
+#24 6.387  --> src/tools/registry.rs:7:5
+#24 6.387   |
+#24 6.387 7 | use std::sync::Arc;
+#24 6.387   |     ^^^^^^^^^^^^^^
+#24 6.387 
+#24 6.387 warning: unused import: `crate::security::SecurityPolicy`
+#24 6.387  --> src/tools/registry.rs:9:5
+#24 6.387   |
+#24 6.387 9 | use crate::security::SecurityPolicy;
+#24 6.387   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#24 6.387 
+#24 6.391 warning: unexpected `cfg` condition value: `firecrawl`
+#24 6.391    --> src/tools/web_fetch.rs:202:11
+#24 6.391     |
+#24 6.391 202 |     #[cfg(feature = "firecrawl")]
+#24 6.391     |           ^^^^^^^^^^^^^^^^^^^^^
+#24 6.391     |
+#24 6.391     = note: expected values for `feature` are: `browser-native`, `channel-lark`, `channel-matrix`, `default`, `fantoccini`, `hardware`, `landlock`, `memory-postgres`, `nusb`, `observability-otel`, `peripheral-rpi`, `probe`, `rag-pdf`, `rppal`, `runtime-wasm`, `sandbox-bubblewrap`, `sandbox-landlock`, `tokio-serial`, `wasm-tools`, and `whatsapp-web`
+#24 6.391     = help: consider adding `firecrawl` as a feature in `Cargo.toml`
+#24 6.391     = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+#24 6.391 
+#24 6.391 warning: unexpected `cfg` condition value: `firecrawl`
+#24 6.391    --> src/tools/web_fetch.rs:279:15
+#24 6.391     |
+#24 6.391 279 |     #[cfg(not(feature = "firecrawl"))]
+#24 6.391     |               ^^^^^^^^^^^^^^^^^^^^^
+#24 6.391     |
+#24 6.391     = note: expected values for `feature` are: `browser-native`, `channel-lark`, `channel-matrix`, `default`, `fantoccini`, `hardware`, `landlock`, `memory-postgres`, `nusb`, `observability-otel`, `peripheral-rpi`, `probe`, `rag-pdf`, `rppal`, `runtime-wasm`, `sandbox-bubblewrap`, `sandbox-landlock`, `tokio-serial`, `wasm-tools`, and `whatsapp-web`
+#24 6.391     = help: consider adding `firecrawl` as a feature in `Cargo.toml`
+#24 6.391     = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+#24 6.391 
+#24 6.391 warning: unexpected `cfg` condition value: `web-fetch-html2md`
+#24 6.391    --> src/tools/web_fetch.rs:106:23
+#24 6.391     |
+#24 6.391 106 |                 #[cfg(feature = "web-fetch-html2md")]
+#24 6.391     |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#24 6.391     |
+#24 6.391     = note: expected values for `feature` are: `browser-native`, `channel-lark`, `channel-matrix`, `default`, `fantoccini`, `hardware`, `landlock`, `memory-postgres`, `nusb`, `observability-otel`, `peripheral-rpi`, `probe`, `rag-pdf`, `rppal`, `runtime-wasm`, `sandbox-bubblewrap`, `sandbox-landlock`, `tokio-serial`, `wasm-tools`, and `whatsapp-web`
+#24 6.391     = help: consider adding `web-fetch-html2md` as a feature in `Cargo.toml`
+#24 6.391     = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+#24 6.391 
+#24 6.391 warning: unexpected `cfg` condition value: `web-fetch-html2md`
+#24 6.391    --> src/tools/web_fetch.rs:110:27
+#24 6.391     |
+#24 6.391 110 |                 #[cfg(not(feature = "web-fetch-html2md"))]
+#24 6.391     |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#24 6.391     |
+#24 6.391     = note: expected values for `feature` are: `browser-native`, `channel-lark`, `channel-matrix`, `default`, `fantoccini`, `hardware`, `landlock`, `memory-postgres`, `nusb`, `observability-otel`, `peripheral-rpi`, `probe`, `rag-pdf`, `rppal`, `runtime-wasm`, `sandbox-bubblewrap`, `sandbox-landlock`, `tokio-serial`, `wasm-tools`, and `whatsapp-web`
+#24 6.391     = help: consider adding `web-fetch-html2md` as a feature in `Cargo.toml`
+#24 6.391     = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+#24 6.391 
+#24 6.393 warning: unexpected `cfg` condition value: `web-fetch-plaintext`
+#24 6.393    --> src/tools/web_fetch.rs:118:23
+#24 6.393     |
+#24 6.393 118 |                 #[cfg(feature = "web-fetch-plaintext")]
+#24 6.393     |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#24 6.393     |
+#24 6.393     = note: expected values for `feature` are: `browser-native`, `channel-lark`, `channel-matrix`, `default`, `fantoccini`, `hardware`, `landlock`, `memory-postgres`, `nusb`, `observability-otel`, `peripheral-rpi`, `probe`, `rag-pdf`, `rppal`, `runtime-wasm`, `sandbox-bubblewrap`, `sandbox-landlock`, `tokio-serial`, `wasm-tools`, and `whatsapp-web`
+#24 6.393     = help: consider adding `web-fetch-plaintext` as a feature in `Cargo.toml`
+#24 6.393     = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+#24 6.393 
+#24 6.393 warning: unexpected `cfg` condition value: `web-fetch-plaintext`
+#24 6.393    --> src/tools/web_fetch.rs:122:27
+#24 6.393     |
+#24 6.393 122 |                 #[cfg(not(feature = "web-fetch-plaintext"))]
+#24 6.393     |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#24 6.393     |
+#24 6.393     = note: expected values for `feature` are: `browser-native`, `channel-lark`, `channel-matrix`, `default`, `fantoccini`, `hardware`, `landlock`, `memory-postgres`, `nusb`, `observability-otel`, `peripheral-rpi`, `probe`, `rag-pdf`, `rppal`, `runtime-wasm`, `sandbox-bubblewrap`, `sandbox-landlock`, `tokio-serial`, `wasm-tools`, and `whatsapp-web`
+#24 6.393     = help: consider adding `web-fetch-plaintext` as a feature in `Cargo.toml`
+#24 6.393     = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+#24 6.393 
+#24 6.394 warning: unexpected `cfg` condition value: `firecrawl`
+#24 6.394    --> src/tools/web_search_tool.rs:197:11
+#24 6.394     |
+#24 6.394 197 |     #[cfg(feature = "firecrawl")]
+#24 6.394     |           ^^^^^^^^^^^^^^^^^^^^^
+#24 6.394     |
+#24 6.394     = note: expected values for `feature` are: `browser-native`, `channel-lark`, `channel-matrix`, `default`, `fantoccini`, `hardware`, `landlock`, `memory-postgres`, `nusb`, `observability-otel`, `peripheral-rpi`, `probe`, `rag-pdf`, `rppal`, `runtime-wasm`, `sandbox-bubblewrap`, `sandbox-landlock`, `tokio-serial`, `wasm-tools`, and `whatsapp-web`
+#24 6.394     = help: consider adding `firecrawl` as a feature in `Cargo.toml`
+#24 6.394     = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+#24 6.394 
+#24 6.394 warning: unexpected `cfg` condition value: `firecrawl`
+#24 6.394    --> src/tools/web_search_tool.rs:294:15
+#24 6.394     |
+#24 6.394 294 |     #[cfg(not(feature = "firecrawl"))]
+#24 6.394     |               ^^^^^^^^^^^^^^^^^^^^^
+#24 6.394     |
+#24 6.394     = note: expected values for `feature` are: `browser-native`, `channel-lark`, `channel-matrix`, `default`, `fantoccini`, `hardware`, `landlock`, `memory-postgres`, `nusb`, `observability-otel`, `peripheral-rpi`, `probe`, `rag-pdf`, `rppal`, `runtime-wasm`, `sandbox-bubblewrap`, `sandbox-landlock`, `tokio-serial`, `wasm-tools`, and `whatsapp-web`
+#24 6.394     = help: consider adding `firecrawl` as a feature in `Cargo.toml`
+#24 6.394     = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+#24 6.394 
+#24 24.70 warning: unused import: `crate::runtime::RuntimeAdapter`
+#24 24.70   --> src/tools/registry.rs:10:5
+#24 24.70    |
+#24 24.70 10 | use crate::runtime::RuntimeAdapter;
+#24 24.70    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#24 24.70 
+#24 35.01 warning: unused variable: `approval_manager`
+#24 35.01    --> src/gateway/ws.rs:195:9
+#24 35.01     |
+#24 35.01 195 |     let approval_manager = {
+#24 35.01     |         ^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_approval_manager`
+#24 35.01     |
+#24 35.01     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+#24 35.01 
+#24 42.31 warning: variable does not need to be mutable
+#24 42.31    --> src/providers/ollama_native.rs:313:13
+#24 42.31     |
+#24 42.31 313 |         let mut args = tc.function.arguments.clone();
+#24 42.31     |             ----^^^^
+#24 42.31     |             |
+#24 42.31     |             help: remove this `mut`
+#24 42.31     |
+#24 42.31     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+#24 42.31 
+#24 50.66 warning: `zeroclaw` (lib) generated 21 warnings
+#24 50.66 error: could not compile `zeroclaw` (lib) due to 17 previous errors; 21 warnings emitted
+#24 ERROR: process "/bin/sh -c if [ -n \"$ZEROCLAW_CARGO_FEATURES\" ]; then       cargo build --release --features \"$ZEROCLAW_CARGO_FEATURES\";     else       cargo build --release;     fi &&     cp target/release/zeroclaw /app/zeroclaw &&     strip /app/zeroclaw" did not complete successfully: exit code: 101
+------
+ > [builder 15/16] RUN --mount=type=cache,id=zeroclaw-cargo-registry,target=/usr/local/cargo/registry,sharing=locked     --mount=type=cache,id=zeroclaw-cargo-git,target=/usr/local/cargo/git,sharing=locked     --mount=type=cache,id=zeroclaw-target,target=/app/target,sharing=locked     if [ -n "" ]; then       cargo build --release --features "";     else       cargo build --release;     fi &&     cp target/release/zeroclaw /app/zeroclaw &&     strip /app/zeroclaw:
+42.31     |
+42.31 313 |         let mut args = tc.function.arguments.clone();
+42.31     |             ----^^^^
+42.31     |             |
+42.31     |             help: remove this `mut`
+42.31     |
+42.31     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+42.31 
+50.66 warning: `zeroclaw` (lib) generated 21 warnings
+50.66 error: could not compile `zeroclaw` (lib) due to 17 previous errors; 21 warnings emitted
+------
+ERROR: failed to solve: process "/bin/sh -c if [ -n \"$ZEROCLAW_CARGO_FEATURES\" ]; then       cargo build --release --features \"$ZEROCLAW_CARGO_FEATURES\";     else       cargo build --release;     fi &&     cp target/release/zeroclaw /app/zeroclaw &&     strip /app/zeroclaw" did not complete successfully: exit code: 101

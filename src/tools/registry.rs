@@ -49,27 +49,5 @@ impl Default for ToolRegistry {
     }
 }
 
-/// Helper to build the registry based on security and runtime.
-pub struct RegistryBuilder {
-    security: Arc<SecurityPolicy>,
-    runtime: Arc<dyn RuntimeAdapter>,
-}
-
-impl RegistryBuilder {
-    pub fn new(security: Arc<SecurityPolicy>, runtime: Arc<dyn RuntimeAdapter>) -> Self {
-        Self { security, runtime }
-    }
-
-    pub fn build(self) -> ToolRegistry {
-        let mut registry = ToolRegistry::new();
-        let tools = super::all_tools_with_runtime(
-            self.security.clone(),
-            self.runtime.clone(),
-            &crate::config::Config::default(), // This is a bit of a hack, but all_tools_with_runtime needs it
-        );
-        for tool in tools {
-            registry.register(tool);
-        }
-        registry
-    }
-}
+// RegistryBuilder was removed because it had incomplete dependencies for all_tools_with_runtime.
+// Consider re-implementing it if a centralized tool builder is needed.
