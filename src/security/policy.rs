@@ -617,6 +617,29 @@ impl SecurityPolicy {
                     | "ssh"
                     | "ftp"
                     | "telnet"
+                    | "apt"
+                    | "apt-get"
+                    | "dpkg"
+                    | "yum"
+                    | "dnf"
+                    | "pacman"
+                    | "zypper"
+                    | "apk"
+                    | "pip"
+                    | "pip3"
+                    | "conda"
+                    | "mamba"
+                    | "gem"
+                    | "bundler"
+                    | "rake"
+                    | "make"
+                    | "cmake"
+                    | "ninja"
+                    | "docker"
+                    | "kubectl"
+                    | "helm"
+                    | "terraform"
+                    | "ansible"
             ) {
                 return CommandRiskLevel::High;
             }
@@ -670,6 +693,24 @@ impl SecurityPolicy {
             CommandRiskLevel::Medium
         } else {
             CommandRiskLevel::Low
+        }
+    }
+
+    /// Assess risk level for a general tool call.
+    pub fn tool_risk_level(&self, tool_name: &str, args: &serde_json::Value) -> CommandRiskLevel {
+        match tool_name {
+            "shell" => {
+                let command = args
+                    .get("command")
+                    .and_then(|v| v.as_str())
+                    .or_else(|| args.get("cmd").and_then(|v| v.as_str()))
+                    .unwrap_or("");
+                self.command_risk_level(command)
+            }
+            "file_write" | "file_edit" | "apply_patch" | "file_delete" => CommandRiskLevel::Medium,
+            "browser" | "http_request" | "web_fetch" => CommandRiskLevel::Medium,
+            "subagent_spawn" | "delegate" => CommandRiskLevel::High,
+            _ => CommandRiskLevel::Low,
         }
     }
 

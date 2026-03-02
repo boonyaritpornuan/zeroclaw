@@ -55,6 +55,7 @@ pub mod pdf_read;
 pub mod process;
 pub mod proxy_config;
 pub mod pushover;
+pub mod registry;
 pub mod schedule;
 pub mod schema;
 pub mod screenshot;
@@ -107,6 +108,7 @@ pub use pdf_read::PdfReadTool;
 pub use process::ProcessTool;
 pub use proxy_config::ProxyConfigTool;
 pub use pushover::PushoverTool;
+pub use registry::ToolRegistry;
 pub use schedule::ScheduleTool;
 #[allow(unused_imports)]
 pub use schema::{CleaningStrategy, SchemaCleanr};

@@ -22,6 +22,7 @@ pub mod compatible;
 pub mod copilot;
 pub mod gemini;
 pub mod ollama;
+pub mod ollama_native;
 pub mod openai;
 pub mod openai_codex;
 pub mod openrouter;
@@ -1069,6 +1070,11 @@ fn create_provider_with_url_and_options(
             key,
             options.reasoning_enabled,
         ))),
+        "ollama-native" | "ollama_native" => Ok(Box::new(ollama_native::OllamaNativeProvider::new_with_reasoning(
+            api_url,
+            key,
+            options.reasoning_enabled,
+        ))),
         "gemini" | "google" | "google-gemini" => {
             let state_dir = options
                 .zeroclaw_dir
@@ -1609,6 +1615,12 @@ pub fn list_providers() -> Vec<ProviderInfo> {
             name: "ollama",
             display_name: "Ollama",
             aliases: &[],
+            local: true,
+        },
+        ProviderInfo {
+            name: "ollama-native",
+            display_name: "Ollama (Native)",
+            aliases: &["ollama_native"],
             local: true,
         },
         ProviderInfo {

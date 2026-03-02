@@ -14,11 +14,21 @@ use uuid::Uuid;
 
 // ── Types ────────────────────────────────────────────────────────
 
+/// Risk level of a tool call.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RiskLevel {
+    Low,
+    Medium,
+    High,
+}
+
 /// A request to approve a tool call before execution.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApprovalRequest {
     pub tool_name: String,
     pub arguments: serde_json::Value,
+    pub risk_level: RiskLevel,
 }
 
 /// The user's response to an approval request.
@@ -97,6 +107,8 @@ pub struct ApprovalManager {
     resolved_non_cli_requests: Mutex<HashMap<String, ApprovalResponse>>,
     /// Audit trail of approval decisions.
     audit_log: Mutex<Vec<ApprovalLogEntry>>,
+    /// Optional security policy for risk calculation.
+    security: Option<Arc<crate::security::SecurityPolicy>>,
 }
 
 impl ApprovalManager {
@@ -147,7 +159,13 @@ impl ApprovalManager {
             pending_non_cli_requests: Mutex::new(HashMap::new()),
             resolved_non_cli_requests: Mutex::new(HashMap::new()),
             audit_log: Mutex::new(Vec::new()),
+            security: None,
         }
+    }
+
+    pub fn with_security(mut self, security: Arc<crate::security::SecurityPolicy>) -> Self {
+        self.security = Some(security);
+        self
     }
 
     /// Check whether a tool call requires interactive approval.
@@ -593,8 +611,14 @@ impl ApprovalManager {
 /// Display the approval prompt and read user input from stdin.
 fn prompt_cli_interactive(request: &ApprovalRequest) -> ApprovalResponse {
     let summary = summarize_args(&request.arguments);
+    let risk_indicator = match request.risk_level {
+        RiskLevel::High => "\x1b[1;31m[HIGH RISK]\x1b[0m",
+        RiskLevel::Medium => "\x1b[1;33m[MEDIUM RISK]\x1b[0m",
+        RiskLevel::Low => "\x1b[1;32m[LOW RISK]\x1b[0m",
+    };
+
     eprintln!();
-    eprintln!("🔧 Agent wants to execute: {}", request.tool_name);
+    eprintln!("🔧 {} Agent wants to execute: \x1b[1m{}\x1b[0m", risk_indicator, request.tool_name);
     eprintln!("   {summary}");
     eprint!("   [Y]es / [N]o / [A]lways for {}: ", request.tool_name);
     let _ = io::stderr().flush();
