@@ -1031,9 +1031,11 @@ pub(crate) async fn run_tool_call_loop(
                         channel_name,
                     );
                 } else if mgr.needs_approval(&tool_name) {
+                    let risk_level = mgr.calculate_risk(&tool_name, &tool_args);
                     let request = ApprovalRequest {
                         tool_name: tool_name.clone(),
                         arguments: tool_args.clone(),
+                        risk_level,
                     };
 
                     let decision = if channel_name == "cli" {
@@ -1686,7 +1688,8 @@ pub async fn run(
 
     // ── Approval manager (supervised mode) ───────────────────────
     let approval_manager = if interactive {
-        Some(ApprovalManager::from_config(&config.autonomy))
+        let policy = Arc::new(SecurityPolicy::from_config(&config.autonomy, &config.workspace_dir));
+        Some(ApprovalManager::from_config(&config.autonomy).with_security(policy))
     } else {
         None
     };

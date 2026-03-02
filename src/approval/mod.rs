@@ -198,9 +198,21 @@ impl ApprovalManager {
             return false;
         }
 
-        // Default: supervised mode requires approval.
-        true
+    /// Default: supervised mode requires approval.
+    true
+}
+
+/// Calculate risk level for a tool call using the optional security policy.
+pub fn calculate_risk(&self, tool_name: &str, args: &serde_json::Value) -> RiskLevel {
+    let security = self.security.as_ref();
+    let risk = security.map(|s| s.tool_risk_level(tool_name, args));
+
+    match risk {
+        Some(crate::security::policy::CommandRiskLevel::High) => RiskLevel::High,
+        Some(crate::security::policy::CommandRiskLevel::Medium) => RiskLevel::Medium,
+        _ => RiskLevel::Low,
     }
+}
 
     /// Record an approval decision and update session state.
     pub fn record_decision(
@@ -1174,6 +1186,7 @@ mod tests {
         let req = ApprovalRequest {
             tool_name: "shell".into(),
             arguments: serde_json::json!({"command": "echo hi"}),
+            risk_level: RiskLevel::Low,
         };
         let json = serde_json::to_string(&req).unwrap();
         let parsed: ApprovalRequest = serde_json::from_str(&json).unwrap();
