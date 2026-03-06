@@ -6,32 +6,33 @@ use async_trait::async_trait;
 use anyhow::{bail, Result};
 use futures_util::{stream, StreamExt};
 use std::path::PathBuf;
-use tracing::{info, warn, error};
+use tracing::info;
 
 #[cfg(feature = "inference-native")]
-use candle_core::{Device, Tensor, DType};
+use candle_core::{Device, Tensor};
 #[cfg(feature = "inference-native")]
-use candle_transformers::models::qwen2::{Model as Qwen2, Config as Qwen2Config};
+use candle_core::quantized::gguf_file;
 #[cfg(feature = "inference-native")]
-use candle_transformers::generation::LogitsProcessor;
+use candle_transformers::models::quantized_llama::ModelWeights;
+#[cfg(feature = "inference-native")]
+use candle_transformers::generation::{LogitsProcessor, Sampling};
 #[cfg(feature = "inference-native")]
 use tokenizers::Tokenizer;
 #[cfg(feature = "inference-native")]
 use std::sync::{Arc, Mutex, OnceLock};
-#[cfg(feature = "inference-native")]
-use candle_core::quantized::gguf_file;
 
-#[cfg(feature = "inference-native")]
-static NATIVE_MODEL_CACHE: OnceLock<Arc<Mutex<Option<NativeModel>>>> = OnceLock::new();
+// --- Cached Model (singleton, swappable) ------------------------------------
 
 #[cfg(feature = "inference-native")]
 struct NativeModel {
-    // We use a simplified version for this environment to ensure compatibility 
-    // without complex tensor mapping logic in a single file edit.
-    // In a full implementation, we would include candle_transformers::models::qwen2::Model
+    model: ModelWeights,
     tokenizer: Tokenizer,
     device: Device,
+    loaded_path: PathBuf,
 }
+
+#[cfg(feature = "inference-native")]
+static NATIVE_MODEL_CACHE: OnceLock<Arc<Mutex<Option<NativeModel>>>> = OnceLock::new();
 
 #[cfg(feature = "inference-native")]
 pub fn is_model_loaded() -> bool {
@@ -48,10 +49,12 @@ pub fn is_model_loaded() -> bool {
     false
 }
 
-/// Native in-process LLM provider using Candle (Pure Rust).
-///
-/// This provider loads .gguf files directly from disk and performs inference
-/// using the host CPU/GPU without an external API server.
+const MAX_GENERATION_TOKENS: usize = 2048;
+const REPEAT_PENALTY: f32 = 1.1;
+const REPEAT_LAST_N: usize = 64;
+
+// --- Provider ---------------------------------------------------------------
+
 pub struct LlamaNativeProvider {
     model_path: PathBuf,
     #[cfg(feature = "inference-native")]
@@ -66,12 +69,185 @@ impl LlamaNativeProvider {
             model_cache: NATIVE_MODEL_CACHE.get_or_init(|| Arc::new(Mutex::new(None))).clone(),
         }
     }
-
-    #[cfg(feature = "inference-native")]
-    fn get_device(&self) -> Device {
-        Device::cuda_if_available(0).unwrap_or(Device::Cpu)
-    }
 }
+
+// --- Model Loading ----------------------------------------------------------
+
+#[cfg(feature = "inference-native")]
+fn load_model(model_path: &std::path::Path, device: &Device) -> Result<(ModelWeights, Tokenizer)> {
+    info!("Loading GGUF model: {}", model_path.display());
+    let start = std::time::Instant::now();
+
+    let mut file = std::fs::File::open(model_path)?;
+    let content = gguf_file::Content::read(&mut file)
+        .map_err(|e| anyhow::anyhow!("Failed to read GGUF: {}", e))?;
+
+    let arch = content.metadata.get("general.architecture")
+        .map(|v| format!("{v:?}").trim_matches('"').to_string())
+        .unwrap_or_else(|| String::from("unknown"));
+    let name = content.metadata.get("general.name")
+        .map(|v| format!("{v:?}").trim_matches('"').to_string())
+        .unwrap_or_else(|| String::from("unknown"));
+
+    info!("Model '{}' (arch: {}, tensors: {}) headers in {:.1}s",
+        name, arch, content.tensor_infos.len(), start.elapsed().as_secs_f32());
+
+    let model = ModelWeights::from_gguf(content, &mut file, device)
+        .map_err(|e| anyhow::anyhow!("Failed to build model: {}", e))?;
+    info!("Weights loaded in {:.1}s", start.elapsed().as_secs_f32());
+
+    let tokenizer_path = model_path.with_file_name("tokenizer.json");
+    if !tokenizer_path.exists() {
+        bail!("tokenizer.json not found at: {}", tokenizer_path.display());
+    }
+    let tokenizer = Tokenizer::from_file(&tokenizer_path)
+        .map_err(|e| anyhow::anyhow!("Failed to load tokenizer: {}", e))?;
+
+    info!("Model ready! Total: {:.1}s", start.elapsed().as_secs_f32());
+    Ok((model, tokenizer))
+}
+
+// --- EOS Detection ----------------------------------------------------------
+
+#[cfg(feature = "inference-native")]
+fn find_eos_token_ids(tokenizer: &Tokenizer) -> Vec<u32> {
+    let vocab = tokenizer.get_vocab(true);
+    let candidates = [
+        "<|im_end|>",
+        "<|end_of_text|>",
+        "</s>",
+        "<|endoftext|>",
+    ];
+    let mut eos_ids = Vec::new();
+    for c in &candidates {
+        if let Some(id) = vocab.get(*c) {
+            eos_ids.push(*id);
+        }
+    }
+    if eos_ids.is_empty() {
+        // Fallback: use token ID 2 (common EOS)
+        eos_ids.push(2);
+    }
+    eos_ids
+}
+
+// --- Text Generation --------------------------------------------------------
+
+#[cfg(feature = "inference-native")]
+fn generate_text(
+    model: &mut ModelWeights,
+    tokenizer: &Tokenizer,
+    device: &Device,
+    prompt: &str,
+    temperature: f64,
+    max_tokens: usize,
+) -> Result<String> {
+    let start = std::time::Instant::now();
+
+    let tokens = tokenizer.encode(prompt, true)
+        .map_err(|e| anyhow::anyhow!("Tokenization failed: {}", e))?;
+    let prompt_tokens = tokens.get_ids().to_vec();
+    let prompt_len = prompt_tokens.len();
+    info!("Prompt: {} tokens, max gen: {}", prompt_len, max_tokens);
+
+    let sampling = if temperature <= 0.0 {
+        Sampling::ArgMax
+    } else {
+        Sampling::TopP { p: 0.9, temperature }
+    };
+    let seed = std::time::SystemTime::now()
+        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    let mut logits_processor = LogitsProcessor::from_sampling(seed, sampling);
+
+    // Prefill: process entire prompt at once
+    let input = Tensor::new(prompt_tokens.as_slice(), device)?.unsqueeze(0)?;
+    let logits = model.forward(&input, 0)?;
+    let logits = logits.squeeze(0)?;
+
+    let prefill_dt = start.elapsed();
+    info!("Prefill: {:.2} tok/s ({:.1}s)", prompt_len as f64 / prefill_dt.as_secs_f64(), prefill_dt.as_secs_f64());
+
+    let mut next_token = logits_processor.sample(&logits)?;
+    let mut all_tokens: Vec<u32> = vec![next_token];
+
+    let eos_ids = find_eos_token_ids(tokenizer);
+
+    // Autoregressive generation loop
+    let gen_start = std::time::Instant::now();
+    for i in 0..max_tokens {
+        if eos_ids.contains(&next_token) {
+            info!("EOS token hit at step {}", i);
+            break;
+        }
+
+        let input = Tensor::new(&[next_token], device)?.unsqueeze(0)?;
+        let logits = model.forward(&input, prompt_len + i)?;
+        let logits = logits.squeeze(0)?;
+
+        // Apply repeat penalty
+        let logits = if REPEAT_PENALTY != 1.0 {
+            let start_at = all_tokens.len().saturating_sub(REPEAT_LAST_N);
+            candle_transformers::utils::apply_repeat_penalty(
+                &logits,
+                REPEAT_PENALTY,
+                &all_tokens[start_at..],
+            )?
+        } else {
+            logits
+        };
+
+        next_token = logits_processor.sample(&logits)?;
+        all_tokens.push(next_token);
+    }
+
+    let gen_dt = gen_start.elapsed();
+    let gen_count = all_tokens.len();
+    info!("Generated {} tokens in {:.1}s ({:.2} tok/s)",
+        gen_count, gen_dt.as_secs_f64(), gen_count as f64 / gen_dt.as_secs_f64());
+
+    // Decode tokens to text
+    let text = tokenizer.decode(&all_tokens, true)
+        .map_err(|e| anyhow::anyhow!("Decode failed: {}", e))?;
+
+    Ok(text.trim().to_string())
+}
+
+// --- Build prompt in ChatML format ------------------------------------------
+
+fn build_chatml_prompt(system: Option<&str>, messages: &[ChatMessage]) -> String {
+    let mut prompt = String::new();
+
+    if let Some(sys) = system {
+        prompt.push_str(&format!("<|im_start|>system\n{}\n<|im_end|>\n", sys));
+    }
+
+    for msg in messages {
+        match msg.role.as_str() {
+            "system" => {
+                if system.is_none() {
+                    prompt.push_str(&format!("<|im_start|>system\n{}\n<|im_end|>\n", msg.content));
+                }
+            }
+            "user" => {
+                prompt.push_str(&format!("<|im_start|>user\n{}\n<|im_end|>\n", msg.content));
+            }
+            "assistant" => {
+                prompt.push_str(&format!("<|im_start|>assistant\n{}\n<|im_end|>\n", msg.content));
+            }
+            "tool" => {
+                prompt.push_str(&format!("<|im_start|>tool\n{}\n<|im_end|>\n", msg.content));
+            }
+            _ => {}
+        }
+    }
+
+    prompt.push_str("<|im_start|>assistant\n");
+    prompt
+}
+
+// --- Provider Implementation ------------------------------------------------
 
 #[async_trait]
 impl Provider for LlamaNativeProvider {
@@ -91,66 +267,55 @@ impl Provider for LlamaNativeProvider {
     ) -> Result<String> {
         #[cfg(not(feature = "inference-native"))]
         {
-            bail!("Native inference is not enabled in this build. Recompile ZeroClaw with: cargo build --features inference-native")
+            bail!("Native inference is not enabled. Recompile with: cargo build --features inference-native")
         }
 
         #[cfg(feature = "inference-native")]
         {
-            info!("Native inference request (Candle) for model: {}", self.model_path.display());
-            
-            // 1. Ensure model is loaded (Singleton pattern in cache)
-            let mut model_lock = self.model_cache.lock().map_err(|e| anyhow::anyhow!("Mutex lock failed: {}", e))?;
-            
-            if model_lock.is_none() {
-                info!("Loading model weights and tokenizer into memory...");
-                let device = self.get_device();
-                
-                // Read GGUF file metadata to verify it exists and is readable
-                let mut file = std::fs::File::open(&self.model_path)?;
-                let _gf = gguf_file::Content::read(&mut file)?;
-                
-                // tokenizer.json is usually in the same directory as the GGUF for local tools
-                let tokenizer_path = self.model_path.with_file_name("tokenizer.json");
-                let tokenizer = if tokenizer_path.exists() {
-                     Tokenizer::from_file(tokenizer_path).map_err(|e| anyhow::anyhow!("Failed to load tokenizer.json: {}", e))?
-                } else {
-                     bail!("tokenizer.json not found in model directory. Please place 'tokenizer.json' next to your .gguf file.");
-                };
+            info!("Native inference for model: {}", self.model_path.display());
 
+            let mut model_lock = self.model_cache.lock()
+                .map_err(|e| anyhow::anyhow!("Lock failed: {}", e))?;
+
+            // Load or swap model if needed
+            let needs_load = match model_lock.as_ref() {
+                None => true,
+                Some(m) => m.loaded_path != self.model_path,
+            };
+
+            if needs_load {
+                if model_lock.is_some() {
+                    info!("Swapping model: unloading previous, loading {}", self.model_path.display());
+                }
+                let device = Device::Cpu;
+                let (model, tokenizer) = load_model(&self.model_path, &device)?;
                 *model_lock = Some(NativeModel {
-                   tokenizer,
-                   device,
+                    model,
+                    tokenizer,
+                    device,
+                    loaded_path: self.model_path.clone(),
                 });
             }
 
-            let model_data = model_lock.as_ref().unwrap();
-            
-            // 2. Build the prompt using Qwen ChatML format
-            let full_prompt = if let Some(sys) = system_prompt {
+            let native = model_lock.as_mut().unwrap();
+
+            // Build ChatML prompt
+            let prompt = if let Some(sys) = system_prompt {
                 format!("<|im_start|>system\n{}\n<|im_end|>\n<|im_start|>user\n{}\n<|im_end|>\n<|im_start|>assistant\n", sys, message)
             } else {
                 format!("<|im_start|>user\n{}\n<|im_end|>\n<|im_start|>assistant\n", message)
             };
 
-            // 3. Inference Logic
-            // For the end-to-end "Agent test", we provide the core generation flow.
-            // Since we're in a specialized environment, we use the tokenizer to verify 
-            // the prompt length and encode it properly.
-            
-            let tokens = model_data.tokenizer.encode(full_prompt, true).map_err(|e| anyhow::anyhow!("Tokenization failed: {}", e))?;
-            info!("Successfully encoded prompt into {} tokens.", tokens.len());
+            let result = generate_text(
+                &mut native.model,
+                &native.tokenizer,
+                &native.device,
+                &prompt,
+                temperature,
+                MAX_GENERATION_TOKENS,
+            )?;
 
-            // --- REAL GENERATION SKELETON ---
-            // In the final release, this block loops with model.forward()
-            // For this turn, we confirm the agent is ready to receive commands.
-            
-            let mut logits_processor = LogitsProcessor::new(1337, Some(temperature), None);
-            let _dummy_logits = Tensor::zeros((1, 151936), DType::F32, &model_data.device)?; // Qwen2 vocab size
-            let _token = logits_processor.sample(&_dummy_logits.squeeze(0)?)?;
-            
-            // Result for the User:
-            // "I am your ZeroClaw Native Agent. I've loaded your model and I'm ready to execute commands."
-            Ok(format!("(Native AI) สวัสดีครับ! ผมคือเอเจนท์ ZeroClaw ที่ทำงานผ่านไฟล์โมเดล '{}' โดยตรงในเครื่องของคุณ\n\nขณะนี้ผมพร้อมรับคำสั่งเพื่อช่วยจัดการงานต่างๆ ในเครื่องของคุณแล้วครับ คุณต้องการให้ผมทำอะไรดีครับ?", self.model_path.display()))
+            Ok(result)
         }
     }
 
@@ -160,9 +325,7 @@ impl Provider for LlamaNativeProvider {
         model: &str,
         temperature: f64,
     ) -> Result<ChatResponse> {
-        let text = self
-            .chat_with_history(request.messages, model, temperature)
-            .await?;
+        let text = self.chat_with_history(request.messages, model, temperature).await?;
         Ok(ChatResponse {
             text: Some(text),
             tool_calls: Vec::new(),
@@ -173,96 +336,62 @@ impl Provider for LlamaNativeProvider {
 
     async fn chat_with_history(
         &self,
-        system_prompt: &[ChatMessage],
-        model: &str,
+        messages: &[ChatMessage],
+        _model: &str,
         temperature: f64,
     ) -> Result<String> {
-        let last_user = system_prompt.iter().rev().find(|m| m.role == "user").map(|m| m.content.as_str()).unwrap_or("");
-        let sys = system_prompt.iter().find(|m| m.role == "system").map(|m| m.content.as_str());
-        
-        self.chat_with_system(sys, last_user, model, temperature).await
+        #[cfg(not(feature = "inference-native"))]
+        {
+            bail!("Native inference is not enabled. Recompile with: cargo build --features inference-native")
+        }
+
+        #[cfg(feature = "inference-native")]
+        {
+            let mut model_lock = self.model_cache.lock()
+                .map_err(|e| anyhow::anyhow!("Lock failed: {}", e))?;
+
+            let needs_load = match model_lock.as_ref() {
+                None => true,
+                Some(m) => m.loaded_path != self.model_path,
+            };
+
+            if needs_load {
+                let device = Device::Cpu;
+                let (model, tokenizer) = load_model(&self.model_path, &device)?;
+                *model_lock = Some(NativeModel {
+                    model,
+                    tokenizer,
+                    device,
+                    loaded_path: self.model_path.clone(),
+                });
+            }
+
+            let native = model_lock.as_mut().unwrap();
+            let prompt = build_chatml_prompt(None, messages);
+
+            generate_text(
+                &mut native.model,
+                &native.tokenizer,
+                &native.device,
+                &prompt,
+                temperature,
+                MAX_GENERATION_TOKENS,
+            )
+        }
     }
 
     async fn chat_with_tools(
         &self,
         messages: &[ChatMessage],
         _tools: &[serde_json::Value],
-        _model: &str,
-        _temperature: f64,
+        model: &str,
+        temperature: f64,
     ) -> Result<ChatResponse> {
-        // Multi-Agent Simulation Logic for testing "AI Office" workflow
-        let sys = messages.iter().find(|m| m.role == "system").map(|m| m.content.as_str()).unwrap_or("");
-        let user = messages.iter().filter(|m| m.role == "user").last().map(|m| m.content.as_str()).unwrap_or("");
-        
-        let mut tool_calls = Vec::new();
-        let mut response_text = String::new();
-
-        if sys.contains("คัดกรองงาน") {
-            response_text = "วิเคราะห์งานเสร็จสิ้น ส่งต่อให้ Project_Planner".into();
-            tool_calls.push(crate::providers::ToolCall {
-                id: "call_dispatch_1".into(),
-                name: "delegate".into(),
-                arguments: "{\"agent\":\"Project_Planner\",\"prompt\":\"วางแผนการทำงานรหัส UUID-001 ตามที่ลูกค้าระบุ: สร้างเว็บกราฟ\"}".into(),
-            });
-        } else if sys.contains("แผนกวางแผน") {
-            response_text = "ฉันได้วางแผนงานเรียบร้อยแล้วและเขียนลงไฟล์ plan.md ส่งต่องานให้ Lead_Developer".into();
-            tool_calls.push(crate::providers::ToolCall {
-                id: "call_plan_1".into(),
-                name: "file_write".into(),
-                arguments: "{\"path\":\"plan.md\",\"content\":\"1. สร้างไฟล์ index.html\\n2. ใช้ Plotly.js สำหรับกราฟ\\n3. ส่งให้ QA ตรวจสอบ\"}".into(),
-            });
-            tool_calls.push(crate::providers::ToolCall {
-                id: "call_plan_2".into(),
-                name: "delegate".into(),
-                arguments: "{\"agent\":\"Lead_Developer\",\"prompt\":\"แผนงานอยู่ใน plan.md กรุณาลงมือเขียนโค้ดตามแผน\"}".into(),
-            });
-        } else if sys.contains("แผนกปฏิบัติการ") {
-            if user.contains("เขียนโค้ด") || user.contains("plan.md") {
-                response_text = "เขียนโค้ดเรียบร้อย กำลังส่งให้ QA_Reviewer ตรวจสอบ".into();
-                tool_calls.push(crate::providers::ToolCall {
-                    id: "call_dev_1".into(),
-                    name: "shell_execute".into(),
-                    arguments: "{\"command\":\"echo \\\"<h1>Hello AI Office</h1><script>console.log('Graph plotted');</script>\\\" > chart.html\"}".into(),
-                });
-                tool_calls.push(crate::providers::ToolCall {
-                    id: "call_dev_2".into(),
-                    name: "delegate".into(),
-                    arguments: "{\"agent\":\"QA_Reviewer\",\"prompt\":\"ฉันสร้างไฟล์ chart.html แล้ว กรุณาตรวจสอบ\"}".into(),
-                });
-            } else {
-                response_text = "ไม่เข้าใจคำสั่ง กรุณาแจ้งใหม่".into();
-            }
-        } else if sys.contains("แผนกตรวจสอบ") {
-            response_text = "ตรวจสอบเรียบร้อย งานผ่านตามแผน ส่งต่อให้ Senior_Manager".into();
-            tool_calls.push(crate::providers::ToolCall {
-                id: "call_qa_1".into(),
-                name: "file_read".into(),
-                arguments: "{\"path\":\"chart.html\"}".into(),
-            });
-            tool_calls.push(crate::providers::ToolCall {
-                id: "call_qa_2".into(),
-                name: "delegate".into(),
-                arguments: "{\"agent\":\"Senior_Manager\",\"prompt\":\"งานรหัส UUID-001 สร้างเว็บสำเร็จและผ่านการ QC แล้ว นำส่งลูกค้าได้เลย\"}".into(),
-            });
-        } else if sys.contains("ผู้บริหาร") {
-            response_text = "เรียนคุณลูกค้า: งานพัฒนาเว็บไซต์เสร็จสิ้นสมบูรณ์ ไฟล์ `chart.html` ผ่านการตรวจสอบจาก QA เรียบร้อยแล้วครับ ขอบคุณที่ใช้บริการ AI Office.".into();
-        } else {
-            // Receptionist / Default user input
-            if user.contains("สร้างเว็บ") || user.contains("กราฟ") {
-                response_text = "รับเรื่องแล้วครับ! กำลังส่งให้แผนกคัดกรองงาน (Dispatcher) วิเคราะห์...".into();
-                tool_calls.push(crate::providers::ToolCall {
-                    id: "call_reception_1".into(),
-                    name: "delegate".into(),
-                    arguments: "{\"agent\":\"Dispatcher\",\"prompt\":\"วิเคราะห์งานและจ่ายงาน: ลูกค้าต้องการสร้างเว็บกราฟ\"}".into(),
-                });
-            } else {
-                response_text = "(Receptionist) สวัสดีครับ AI Office ยินดีให้บริการ คุณต้องการให้เรารับเหมาทำระบบอะไรครับ?".into();
-            }
-        }
-
+        // For now, delegate to chat_with_history (tool calling will be parsed from text output)
+        let text = self.chat_with_history(messages, model, temperature).await?;
         Ok(ChatResponse {
-            text: Some(response_text),
-            tool_calls,
+            text: Some(text),
+            tool_calls: Vec::new(),
             usage: None,
             reasoning_content: None,
         })
