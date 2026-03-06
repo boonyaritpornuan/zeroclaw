@@ -1,0 +1,74 @@
+default_provider = "llama-native:/models/chinda-qwen3-4b.q4_k_m.gguf"
+default_model = "chinda-qwen3-4b"
+default_temperature = 0.7
+
+[gateway]
+port = 42617
+host = "0.0.0.0"
+allow_public_bind = true
+
+[channels_config]
+cli = true
+
+[channels_config.telegram]
+bot_token = "8122601888:AAFiUES1D1CBA55D6bdql0nBCtbqdD3cGVk"
+allowed_users = ["7300918044"]
+mention_only = false
+
+[autonomy]
+level = "supervised"
+workspace_only = true
+allowed_commands = ["ls", "grep", "cat", "find", "df", "du", "pwd", "whoami", "uname", "date", "ps", "top", "free"]
+forbidden_paths = ["/etc/shadow", "/etc/passwd", "/root", "/zeroclaw-data/.zeroclaw"]
+max_actions_per_hour = 100
+max_cost_per_day_cents = 1000
+auto_approve = ["delegate", "file_read", "file_write", "find_by_name", "grep_search"]
+
+[security]
+workspace_dir = "/zeroclaw-data/workspace"
+
+# --- พนักงาน AI Office ---
+
+[agents.Dispatcher]
+provider = "llama-native:/models/chinda-qwen3-4b.q4_k_m.gguf"
+model = "chinda-qwen3-4b"
+system_prompt = "แผนกคัดกรองงาน: วิเคราะห์งานและส่งต่อให้แผนกที่เหมาะสม (Planner, Worker, Reviewer) ผ่าน delegate"
+agentic = true
+allowed_tools = ["delegate"]
+max_depth = 5
+max_iterations = 10
+
+[agents.Project_Planner]
+provider = "llama-native:/models/chinda-qwen3-4b.q4_k_m.gguf"
+model = "chinda-qwen3-4b"
+system_prompt = "แผนกวางแผน: เขียน 'plan.md' และส่งต่อให้ Lead_Developer"
+agentic = true
+allowed_tools = ["file_write", "delegate"]
+max_depth = 5
+max_iterations = 10
+
+[agents.Lead_Developer]
+provider = "llama-native:/models/chinda-qwen3-4b.q4_k_m.gguf"
+model = "chinda-qwen3-4b"
+system_prompt = "แผนกปฏิบัติการ: ทำงานตาม 'plan.md' และส่งให้ QA_Reviewer"
+agentic = true
+allowed_tools = ["shell_execute", "file_read", "file_write", "delegate"]
+max_depth = 5
+max_iterations = 20
+
+[agents.QA_Reviewer]
+provider = "llama-native:/models/chinda-qwen3-4b.q4_k_m.gguf"
+model = "chinda-qwen3-4b"
+system_prompt = "แผนกตรวจสอบ: ตรวจสอบความถูกต้องและส่งให้ Senior_Manager หรือส่งกลับ Worker"
+agentic = true
+allowed_tools = ["file_read", "delegate"]
+max_depth = 5
+max_iterations = 10
+
+[agents.Senior_Manager]
+provider = "llama-native:/models/chinda-qwen3-4b.q4_k_m.gguf"
+model = "chinda-qwen3-4b"
+system_prompt = "ผู้บริหาร: สรุปงานและส่งจบงาน"
+agentic = false
+max_depth = 5
+max_iterations = 1

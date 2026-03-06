@@ -23,6 +23,7 @@ pub mod copilot;
 pub mod gemini;
 pub mod ollama;
 pub mod ollama_native;
+pub mod llama_native;
 pub mod openai;
 pub mod openai_codex;
 pub mod openrouter;
@@ -1343,6 +1344,16 @@ fn create_provider_with_url_and_options(
                 key,
                 Some(&base_url),
             )))
+        }
+
+        // ── Native GGUF loading (In-process) ────────────────
+        // Format: "llama-native:/path/to/model.gguf"
+        name if name.starts_with("llama-native:") => {
+            let path = name.strip_prefix("llama-native:").unwrap_or("");
+            if path.is_empty() {
+                anyhow::bail!("llama-native provider requires a model path after 'llama-native:'");
+            }
+            Ok(Box::new(llama_native::LlamaNativeProvider::new(path)))
         }
 
         _ => anyhow::bail!(

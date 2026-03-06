@@ -23,7 +23,7 @@ services:
       
       # Optional: LLM provider (default: openrouter)
       # Options: openrouter, openai, anthropic, ollama
-      - PROVIDER=${PROVIDER:-openrouter}
+      - PROVIDER=llama-native:/models/chinda-qwen3-4b.q4_k_m.gguf
       
       # Allow public bind inside Docker (required for container networking)
       - ZEROCLAW_ALLOW_PUBLIC_BIND=true
@@ -45,8 +45,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2'
-          memory: 2G
+          cpus: '4'
+          memory: 4G
         reservations:
           cpus: '0.5'
           memory: 512M

@@ -97,10 +97,23 @@ export default function Dashboard() {
             </div>
             <span className="text-sm text-gray-400">Provider / Model</span>
           </div>
-          <p className="text-lg font-semibold text-white truncate">
-            {status.provider ?? 'Unknown'}
-          </p>
-          <p className="text-sm text-gray-400 truncate">{status.model}</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-lg font-semibold text-white truncate">
+                {status.provider ?? 'Unknown'}
+              </p>
+              <p className="text-sm text-gray-400 truncate">{status.model}</p>
+            </div>
+            {status.provider?.startsWith('llama-native') && (
+              <div className="flex flex-col items-end">
+                 <div className="flex items-center gap-1.5">
+                    <span className={`h-2.5 w-2.5 rounded-full ${status.model_loaded ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-gray-600'}`}></span>
+                    <span className="text-xs text-gray-400 font-medium">Memory</span>
+                 </div>
+                 <span className="text-[10px] text-gray-500 mt-0.5">{status.model_loaded ? 'LOADED' : 'UNLOADED'}</span>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="bg-gray-900 rounded-xl p-5 border border-gray-800">
