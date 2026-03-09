@@ -13,7 +13,7 @@ use candle_core::{Device, Tensor};
 #[cfg(feature = "inference-native")]
 use candle_core::quantized::gguf_file;
 #[cfg(feature = "inference-native")]
-use candle_transformers::models::quantized_qwen2::ModelWeights;
+use candle_transformers::models::quantized_llama::ModelWeights;
 #[cfg(feature = "inference-native")]
 use candle_transformers::generation::{LogitsProcessor, Sampling};
 #[cfg(feature = "inference-native")]
@@ -92,13 +92,20 @@ fn load_model(model_path: &std::path::Path, device: &Device) -> Result<(ModelWei
     info!("Model '{}' (arch: {}, tensors: {}) headers in {:.1}s",
         name, arch, content.tensor_infos.len(), start.elapsed().as_secs_f32());
 
-    // Remap qwen3.* metadata keys to qwen2.* for Candle compatibility
-    // (Qwen3 is structurally identical to Qwen2, just different key prefix)
+    // Remap qwen3.* metadata keys to llama.* for Candle compatibility
+    // (Qwen3 without attention bias is structurally identical to Llama)
     if arch.contains("qwen3") {
-        info!("Detected Qwen3 architecture — remapping metadata keys to qwen2");
+        info!("Detected Qwen3 architecture — remapping metadata keys to llama");
         let remapped: std::collections::HashMap<String, gguf_file::Value> = content.metadata.iter()
             .filter(|(k, _)| k.starts_with("qwen3."))
-            .map(|(k, v)| (k.replace("qwen3.", "qwen2."), v.clone()))
+            .map(|(k, v)| (k.replace("qwen3.", "llama."), v.clone()))
+            .collect();
+        content.metadata.extend(remapped);
+    } else if arch.contains("qwen2") {
+        info!("Detected Qwen2 architecture — remapping metadata keys to llama");
+        let remapped: std::collections::HashMap<String, gguf_file::Value> = content.metadata.iter()
+            .filter(|(k, _)| k.starts_with("qwen2."))
+            .map(|(k, v)| (k.replace("qwen2.", "llama."), v.clone()))
             .collect();
         content.metadata.extend(remapped);
     }
